@@ -1,0 +1,21 @@
+{
+  "name": "excersice-api",
+  "version": "1.0.0",
+  "description": "A RESTful API service that provides access to a comprehensive database of exercises, built using FastAPI. This API allows users to retrieve detailed exercise information including instructions, primary and secondary muscles targeted, equipment needed, and calorie-burning metrics.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EnmaSantos/excersice-api.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/EnmaSantos/excersice-api/issues"
+  },
+  "homepage": "https://github.com/EnmaSantos/excersice-api#readme"
+}

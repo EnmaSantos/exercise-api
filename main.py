@@ -54,9 +54,13 @@ def read_root():
     return {"message": "Welcome to the Exercise API!"}
 
 @app.get("/exercises", response_model=List[Exercise], tags=["Exercises"])
-def get_exercises():
-    """Fetch all exercises."""
-    return exercise_data
+def get_exercises(skip: int = 0, limit: int = 20):
+    """
+    Fetch exercises with pagination.
+    - **skip**: Number of exercises to skip from the beginning.
+    - **limit**: Maximum number of exercises to return.
+    """
+    return exercise_data[skip : skip + limit]
 
 @app.get("/exercises/{exercise_id}", response_model=Exercise, tags=["Exercises"])
 def get_exercise_by_id(exercise_id: int):
