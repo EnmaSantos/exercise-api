@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List
 import os
 import uvicorn
+import math
 
 # Sample Exercise Data
 import json
@@ -48,19 +49,50 @@ class Exercise(BaseModel):
     duration_minutes: int
     total_calories: float
 
+# Paginated Response Model
+class PaginatedExerciseResponse(BaseModel):
+    exercises: List[Exercise]
+    currentPage: int
+    totalPages: int
+    totalCount: int
+    limit: int
+
 # API Endpoints
 @app.get("/", tags=["Root"])
 def read_root():
     return {"message": "Welcome to the Exercise API!"}
 
-@app.get("/exercises", response_model=List[Exercise], tags=["Exercises"])
-def get_exercises(skip: int = 0, limit: int = 20):
+@app.get("/exercises", response_model=PaginatedExerciseResponse, tags=["Exercises"])
+def get_exercises(page: int = 1, limit: int = 20):
     """
     Fetch exercises with pagination.
-    - **skip**: Number of exercises to skip from the beginning.
-    - **limit**: Maximum number of exercises to return.
+    - **page**: Page number (1-based).
+    - **limit**: Maximum number of exercises to return per page.
     """
-    return exercise_data[skip : skip + limit]
+    # Validate page and limit parameters
+    if page < 1:
+        page = 1
+    if limit < 1:
+        limit = 20
+    if limit > 100:  # Set a reasonable max limit
+        limit = 100
+    
+    total_count = len(exercise_data)
+    total_pages = math.ceil(total_count / limit)
+    
+    # Calculate skip value based on page number
+    skip = (page - 1) * limit
+    
+    # Get exercises for current page
+    exercises_page = exercise_data[skip : skip + limit]
+    
+    return PaginatedExerciseResponse(
+        exercises=exercises_page,
+        currentPage=page,
+        totalPages=total_pages,
+        totalCount=total_count,
+        limit=limit
+    )
 
 @app.get("/exercises/{exercise_id}", response_model=Exercise, tags=["Exercises"])
 def get_exercise_by_id(exercise_id: int):
@@ -74,17 +106,44 @@ def get_exercise_by_id(exercise_id: int):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-@app.get("/exercises/search/{name}", response_model=List[Exercise], tags=["Exercises"])
-def search_exercises_by_name(name: str):
-    """Search exercises by name."""
+@app.get("/exercises/search/{name}", response_model=PaginatedExerciseResponse, tags=["Exercises"])
+def search_exercises_by_name(name: str, page: int = 1, limit: int = 20):
+    """
+    Search exercises by name with pagination.
+    - **name**: Search term to look for in exercise names.
+    - **page**: Page number (1-based).
+    - **limit**: Maximum number of exercises to return per page.
+    """
+    # Validate page and limit parameters
+    if page < 1:
+        page = 1
+    if limit < 1:
+        limit = 20
+    if limit > 100:  # Set a reasonable max limit
+        limit = 100
+    
     search_term = name.lower()
     matching_exercises = [
         exercise for exercise in exercise_data 
         if search_term in exercise["name"].lower()
     ]
-    if not matching_exercises:
-        return []
-    return matching_exercises
+    
+    total_count = len(matching_exercises)
+    total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+    
+    # Calculate skip value based on page number
+    skip = (page - 1) * limit
+    
+    # Get exercises for current page
+    exercises_page = matching_exercises[skip : skip + limit]
+    
+    return PaginatedExerciseResponse(
+        exercises=exercises_page,
+        currentPage=page,
+        totalPages=total_pages,
+        totalCount=total_count,
+        limit=limit
+    )
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
