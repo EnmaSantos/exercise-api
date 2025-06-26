@@ -62,37 +62,12 @@ class PaginatedExerciseResponse(BaseModel):
 def read_root():
     return {"message": "Welcome to the Exercise API!"}
 
-@app.get("/exercises", response_model=PaginatedExerciseResponse, tags=["Exercises"])
-def get_exercises(page: int = 1, limit: int = 20):
+@app.get("/exercises", response_model=List[Exercise], tags=["Exercises"])
+def get_exercises():
     """
-    Fetch exercises with pagination.
-    - **page**: Page number (1-based).
-    - **limit**: Maximum number of exercises to return per page.
+    Fetch all exercises.
     """
-    # Validate page and limit parameters
-    if page < 1:
-        page = 1
-    if limit < 1:
-        limit = 20
-    if limit > 100:  # Set a reasonable max limit
-        limit = 100
-    
-    total_count = len(exercise_data)
-    total_pages = math.ceil(total_count / limit)
-    
-    # Calculate skip value based on page number
-    skip = (page - 1) * limit
-    
-    # Get exercises for current page
-    exercises_page = exercise_data[skip : skip + limit]
-    
-    return PaginatedExerciseResponse(
-        exercises=exercises_page,
-        currentPage=page,
-        totalPages=total_pages,
-        totalCount=total_count,
-        limit=limit
-    )
+    return exercise_data
 
 @app.get("/exercises/{exercise_id}", response_model=Exercise, tags=["Exercises"])
 def get_exercise_by_id(exercise_id: int):
