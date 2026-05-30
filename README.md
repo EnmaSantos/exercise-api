@@ -1,10 +1,14 @@
 # Exercise API
 
-A RESTful API service that provides access to a comprehensive database of exercises, built using FastAPI. This API allows users to retrieve detailed exercise information including instructions, primary and secondary muscles targeted, equipment needed, and calorie-burning metrics.
+FastAPI exercise-data API that fetches, normalizes, and serves exercise metadata through REST endpoints. Built with Python for backend data processing, JSON parsing, data normalization, and API integration.
 
 ## Overview
 
 This API builds upon the excellent "Free Exercise DB" dataset, enhancing it with additional functionality and calorie-burning information. The service makes it easy to integrate exercise data into fitness applications, workout planners, or health tracking systems.
+
+## What This Demonstrates
+
+This project demonstrates Python API development, JSON parsing, data normalization, and backend deployment for a fitness-data use case.
 
 ## Features
 
@@ -50,31 +54,31 @@ Each exercise includes the following information:
 ## Installation
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/exercise-api.git
+   ```bash
+   git clone https://github.com/EnmaSantos/exercise-api.git
    cd exercise-api
    ```
 
 2. Create a virtual environment and activate it:
-   ```
+   ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 3. Install dependencies:
-   ```
+   ```bash
    pip install fastapi uvicorn pydantic
    ```
 
 4. Ensure you have the `fixed_exercises.json` file in your project directory.
 
 5. Run the application:
-   ```
+   ```bash
    python main.py
    ```
 
    Alternatively, you can use uvicorn directly:
-   ```
+   ```bash
    uvicorn main:app --reload
    ```
 
