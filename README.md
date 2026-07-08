@@ -24,9 +24,31 @@ This project demonstrates Python API development, JSON parsing, data normalizati
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Welcome message |
+| `/health` | GET | Health, exercise count, and data hash |
 | `/exercises` | GET | Retrieve all exercises |
 | `/exercises/{exercise_id}` | GET | Get a specific exercise by ID |
 | `/exercises/search/{name}` | GET | Search exercises by name |
+| `/v2/exercises` | GET | Paginated, filterable exercise summaries |
+| `/v2/exercises/{exercise_id}` | GET | Get a specific exercise by ID |
+| `/v2/exercises/meta` | GET | Get filter metadata |
+
+## API v2
+
+Use `/v2/exercises` for frontend list and search screens. It returns summary records without the long `instructions` array, so clients can load and render browsing views faster. Fetch `/v2/exercises/{exercise_id}` only when a user opens an exercise detail view.
+
+Supported `/v2/exercises` query parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `page` | `1` | Page number, clamped to at least `1` |
+| `limit` | `20` | Page size; values below `1` use `20`, values above `100` use `100` |
+| `q` | none | Case-insensitive exercise name search |
+| `category` | none | Case-insensitive exact category filter |
+| `level` | none | Case-insensitive exact level filter |
+| `equipment` | none | Case-insensitive exact equipment filter |
+| `muscle` | none | Case-insensitive primary or secondary muscle filter |
+
+The API uses gzip compression and short-lived public cache headers for read-only exercise responses. On Fly.io, `auto_stop_machines = true` and `min_machines_running = 0` keep hosting costs low, so the first request after inactivity can still be slower while Fly starts a machine.
 
 ## Exercise Data Structure
 

@@ -1,38 +1,64 @@
+from __future__ import annotations
+
+import os
+from typing import List, Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import ORJSONResponse
 from pydantic import BaseModel
-from typing import List
-import os
-import uvicorn
-import math
 
-# Sample Exercise Data
-import json
+from exercise_store import exercise_store
 
-with open("fixed_exercises.json", "r") as file:
-    exercise_data = json.load(file)
 
-# FastAPI app initialization
+CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=86400"
+
+
 app = FastAPI(
     title="Exercise API",
     description="API to fetch exercises and calorie burn information",
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=ORJSONResponse,
 )
 
 origins = [
-    "http://localhost:3000", # Your React frontend development server
-    # Add your deployed Vercel frontend URL here when you have it, e.g.:
+    "http://localhost:3000",
     "https://vitality-vista.vercel.app",
 ]
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # List of origins that are allowed to make requests
-    allow_credentials=True, # Allow cookies to be included in requests (optional)
-    allow_methods=["*"], # Allow all standard methods (GET, POST, etc.)
-    allow_headers=["*"], # Allow all headers
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Exercise Model
+
+@app.middleware("http")
+async def add_cache_headers(request, call_next):
+    response = await call_next(request)
+    cacheable_paths = (
+        request.method == "GET"
+        and (
+            request.url.path == "/health"
+            or request.url.path == "/exercises"
+            or request.url.path.startswith("/exercises/")
+            or request.url.path.startswith("/v2/exercises")
+        )
+    )
+    if (
+        cacheable_paths
+        and 200 <= response.status_code < 400
+        and "cache-control" not in response.headers
+    ):
+        response.headers["Cache-Control"] = CACHE_CONTROL
+    return response
+
+
 class Exercise(BaseModel):
     name: str
     force: str
@@ -49,7 +75,23 @@ class Exercise(BaseModel):
     duration_minutes: int
     total_calories: float
 
-# Paginated Response Model
+
+class ExerciseSummary(BaseModel):
+    name: str
+    force: str
+    level: str
+    mechanic: str
+    equipment: str
+    primaryMuscles: List[str]
+    secondaryMuscles: List[str]
+    category: str
+    images: List[str]
+    id: int
+    calories_per_hour: int
+    duration_minutes: int
+    total_calories: float
+
+
 class PaginatedExerciseResponse(BaseModel):
     exercises: List[Exercise]
     currentPage: int
@@ -57,31 +99,63 @@ class PaginatedExerciseResponse(BaseModel):
     totalCount: int
     limit: int
 
-# API Endpoints
+
+class V2PaginatedExerciseResponse(BaseModel):
+    items: List[ExerciseSummary]
+    page: int
+    limit: int
+    total: int
+    totalPages: int
+
+
+class ExerciseMetaResponse(BaseModel):
+    categories: List[str]
+    levels: List[str]
+    equipment: List[str]
+    muscles: List[str]
+    totalCount: int
+
+
+class HealthResponse(BaseModel):
+    status: str
+    exerciseCount: int
+    dataHash: str
+
+
 @app.get("/", tags=["Root"])
 def read_root():
     return {"message": "Welcome to the Exercise API!"}
 
+
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
+def health_check():
+    return {
+        "status": "healthy",
+        "exerciseCount": exercise_store.total_count,
+        "dataHash": exercise_store.data_hash,
+    }
+
+
 @app.get("/exercises", response_model=List[Exercise], tags=["Exercises"])
 def get_exercises():
-    """
-    Fetch all exercises.
-    """
-    return exercise_data
+    """Fetch all exercises."""
+    return exercise_store.all()
+
 
 @app.get("/exercises/{exercise_id}", response_model=Exercise, tags=["Exercises"])
 def get_exercise_by_id(exercise_id: int):
     """Fetch a single exercise by ID."""
-    try:
-        exercise_id = int(exercise_id)
-        for exercise in exercise_data:
-            if int(exercise["id"]) == exercise_id:
-                return exercise
-        raise HTTPException(status_code=404, detail="Exercise not found")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid ID format")
+    exercise = exercise_store.get(exercise_id)
+    if exercise:
+        return exercise
+    raise HTTPException(status_code=404, detail="Exercise not found")
 
-@app.get("/exercises/search/{name}", response_model=PaginatedExerciseResponse, tags=["Exercises"])
+
+@app.get(
+    "/exercises/search/{name}",
+    response_model=PaginatedExerciseResponse,
+    tags=["Exercises"],
+)
 def search_exercises_by_name(name: str, page: int = 1, limit: int = 20):
     """
     Search exercises by name with pagination.
@@ -89,36 +163,66 @@ def search_exercises_by_name(name: str, page: int = 1, limit: int = 20):
     - **page**: Page number (1-based).
     - **limit**: Maximum number of exercises to return per page.
     """
-    # Validate page and limit parameters
-    if page < 1:
-        page = 1
-    if limit < 1:
-        limit = 20
-    if limit > 100:  # Set a reasonable max limit
-        limit = 100
-    
-    search_term = name.lower()
-    matching_exercises = [
-        exercise for exercise in exercise_data 
-        if search_term in exercise["name"].lower()
-    ]
-    
-    total_count = len(matching_exercises)
-    total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
-    
-    # Calculate skip value based on page number
-    skip = (page - 1) * limit
-    
-    # Get exercises for current page
-    exercises_page = matching_exercises[skip : skip + limit]
-    
-    return PaginatedExerciseResponse(
-        exercises=exercises_page,
-        currentPage=page,
-        totalPages=total_pages,
-        totalCount=total_count,
-        limit=limit
+    result = exercise_store.query(
+        q=name,
+        page=page,
+        limit=limit,
+        include_full=True,
     )
+    return PaginatedExerciseResponse(
+        exercises=result["items"],
+        currentPage=result["page"],
+        totalPages=result["totalPages"],
+        totalCount=result["total"],
+        limit=result["limit"],
+    )
+
+
+@app.get(
+    "/v2/exercises",
+    response_model=V2PaginatedExerciseResponse,
+    tags=["Exercises v2"],
+)
+def get_v2_exercises(
+    page: int = 1,
+    limit: int = 20,
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    level: Optional[str] = None,
+    equipment: Optional[str] = None,
+    muscle: Optional[str] = None,
+):
+    return exercise_store.query(
+        q=q,
+        page=page,
+        limit=limit,
+        category=category,
+        level=level,
+        equipment=equipment,
+        muscle=muscle,
+    )
+
+
+@app.get(
+    "/v2/exercises/meta",
+    response_model=ExerciseMetaResponse,
+    tags=["Exercises v2"],
+)
+def get_v2_exercise_meta():
+    return exercise_store.meta()
+
+
+@app.get(
+    "/v2/exercises/{exercise_id}",
+    response_model=Exercise,
+    tags=["Exercises v2"],
+)
+def get_v2_exercise_by_id(exercise_id: int):
+    exercise = exercise_store.get(exercise_id)
+    if exercise:
+        return exercise
+    raise HTTPException(status_code=404, detail="Exercise not found")
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
